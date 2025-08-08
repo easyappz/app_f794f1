@@ -1,0 +1,36 @@
+openapi: 3.0.3
+info:
+  title: Social Network API
+  version: 0.1.0
+  description: |
+    REST API scaffold for a social network. Endpoints will be detailed in future iterations.
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+paths:
+  /api/auth:
+    get:
+      summary: Placeholder for Auth routes
+      responses:
+        '200':
+          description: OK
+  /api/users:
+    get:
+      summary: Placeholder for User routes
+      responses:
+        '200':
+          description: OK
+  /api/posts:
+    get:
+      summary: Placeholder for Post routes
+      responses:
+        '200':
+          description: OK
