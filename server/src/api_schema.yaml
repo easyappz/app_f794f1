@@ -16,21 +16,85 @@ components:
 security:
   - bearerAuth: []
 paths:
+  /api/status:
+    get:
+      summary: API status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+              example:
+                status: ok
+                timestamp: '2024-01-01T00:00:00.000Z'
   /api/auth:
     get:
       summary: Placeholder for Auth routes
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  section:
+                    type: string
+                  message:
+                    type: string
+              example:
+                success: true
+                section: auth
+                message: Auth placeholder
   /api/users:
     get:
       summary: Placeholder for User routes
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  section:
+                    type: string
+                  message:
+                    type: string
+              example:
+                success: true
+                section: users
+                message: Users placeholder
   /api/posts:
     get:
       summary: Placeholder for Post routes
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  section:
+                    type: string
+                  message:
+                    type: string
+              example:
+                success: true
+                section: posts
+                message: Posts placeholder
