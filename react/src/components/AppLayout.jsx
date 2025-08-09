@@ -12,6 +12,10 @@ export default function AppLayout() {
     if (location.pathname !== '/login') navigate('/login');
   }
 
+  function isActive(path) {
+    return location.pathname === path;
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f7fb', color: '#1f2430' }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff', borderBottom: '1px solid #e6e9ef' }}>
@@ -41,7 +45,27 @@ export default function AppLayout() {
       </header>
 
       <main style={{ maxWidth: 960, margin: '0 auto', padding: 16 }}>
-        <Outlet />
+        {isAuth ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16 }}>
+            <aside style={side}>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Навигация</div>
+              <Link to="/feed" style={isActive('/feed') ? sideLinkActive : sideLink}>Лента</Link>
+              <Link to="/profile" style={isActive('/profile') ? sideLinkActive : sideLink}>Профиль</Link>
+              <div style={sideLinkMuted}>Сообщения (скоро)</div>
+              <div style={sideLinkMuted}>Друзья (скоро)</div>
+              <div style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>
+                Вы вошли как <span style={{ color: '#111827' }}>{user?.displayName || 'Пользователь'}</span>
+              </div>
+            </aside>
+            <section>
+              <Outlet />
+            </section>
+          </div>
+        ) : (
+          <div style={{ maxWidth: 560, margin: '24px auto 0' }}>
+            <Outlet />
+          </div>
+        )}
       </main>
 
       <footer style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
@@ -74,3 +98,8 @@ const btnQuiet = {
   borderRadius: 8,
   cursor: 'pointer',
 };
+
+const side = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, height: 'fit-content', display: 'grid', gap: 4 };
+const sideLink = { display: 'block', padding: '8px 10px', color: '#374151', borderRadius: 8, textDecoration: 'none' };
+const sideLinkActive = { display: 'block', padding: '8px 10px', color: '#111827', borderRadius: 8, background: '#eef2ff', textDecoration: 'none' };
+const sideLinkMuted = { padding: '8px 10px', color: '#9ca3af', borderRadius: 8 };

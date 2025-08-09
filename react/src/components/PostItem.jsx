@@ -1,27 +1,35 @@
 import React from 'react';
 
 export default function PostItem({ post }) {
-  const created = new Date(post.createdAt);
+  const authorName = post?.author?.displayName || post?.authorName || 'Аноним';
+  const avatar = post?.author?.avatarBase64 || '';
+  const created = post?.createdAt ? new Date(post.createdAt).toLocaleString() : '';
+  const content = post?.content || post?.text || '';
+  const likes = typeof post?.likesCount === 'number' ? post.likesCount : undefined;
+
   return (
     <article style={card}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={avatarFallback}>{String(post.author.displayName || 'U').slice(0, 1).toUpperCase()}</div>
-          <div>
-            <div style={{ fontWeight: 600 }}>{post.author.displayName}</div>
-            <div style={{ color: '#6b7280', fontSize: 12 }}>{created.toLocaleString()}</div>
+      <div style={{ display: 'flex', gap: 12 }}>
+        {avatar ? (
+          <img src={avatar} alt="avatar" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e5e7eb' }} />
+        ) : (
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#3730a3', fontWeight: 700 }}>
+            {String(authorName || 'U').slice(0, 1).toUpperCase()}
           </div>
+        )}
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <div style={{ fontWeight: 600 }}>{authorName}</div>
+            <div style={{ color: '#9ca3af', fontSize: 12 }}>{created}</div>
+          </div>
+          <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{content}</div>
+          {typeof likes !== 'undefined' ? (
+            <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>{likes} ❤</div>
+          ) : null}
         </div>
-      </header>
-      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{post.text}</div>
-      {post.imageBase64 ? (
-        <div style={{ marginTop: 10 }}>
-          <img src={post.imageBase64} alt="post" style={{ maxWidth: '100%', borderRadius: 12, border: '1px solid #eee' }} />
-        </div>
-      ) : null}
+      </div>
     </article>
   );
 }
 
 const card = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16 };
-const avatarFallback = { width: 36, height: 36, borderRadius: '50%', background: '#e0e7ff', color: '#3730a3', display: 'grid', placeItems: 'center', fontWeight: 700 };
