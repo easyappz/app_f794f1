@@ -26,7 +26,11 @@ export default function FeedPage() {
     return () => window.removeEventListener('feed:refresh', onRefresh);
   }, [query]);
 
-  const posts = (query.data?.pages || []).flatMap((p) => (p && p.success ? (p.posts || []) : []));
+  const pages = query.data?.pages || [];
+  const firstPage = pages[0];
+  const hasApiError = Boolean(firstPage && firstPage.success !== true);
+  const errorMessage = hasApiError ? (firstPage?.message || 'Не удалось загрузить ленту') : '';
+  const posts = pages.flatMap((p) => (p && p.success ? (p.posts || []) : []));
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
@@ -42,6 +46,8 @@ export default function FeedPage() {
 
       {query.isLoading ? (
         <div style={placeholderBox}>Загружаем ленту…</div>
+      ) : hasApiError ? (
+        <div style={errorBox}>{errorMessage}</div>
       ) : posts.length === 0 ? (
         <div style={placeholderBox}>Постов пока нет. Будьте первым!</div>
       ) : (
@@ -62,4 +68,5 @@ export default function FeedPage() {
 
 const hero = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20 };
 const placeholderBox = { background: '#fff', border: '2px dashed #e5e7eb', borderRadius: 12, padding: 20, textAlign: 'center' };
+const errorBox = { background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 16, color: '#991b1b', textAlign: 'center' };
 const btnQuiet = { padding: '10px 12px', background: 'transparent', color: '#374151', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer' };

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { updateMe } from '../api/users';
 import { fileToDataUrl, estimateBase64Bytes, ONE_MB } from '../utils/base64';
@@ -30,10 +31,16 @@ export default function ProfilePage() {
         setMessage('Профиль обновлён');
         setError('');
         setAvatarChanged(false);
+        toast.success('Профиль обновлён');
       } else {
-        setError(res?.message || 'Не удалось обновить профиль');
+        const msg = res?.message || 'Не удалось обновить профиль';
+        setError(msg);
         setMessage('');
+        toast.error(msg);
       }
+    },
+    onError: () => {
+      toast.error('Сетевая ошибка');
     },
   });
 

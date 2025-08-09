@@ -5,7 +5,7 @@ export function fileToDataUrl(file) {
     try {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = (e) => reject(e);
+      reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsDataURL(file);
     } catch (e) {
       reject(e);
@@ -13,12 +13,24 @@ export function fileToDataUrl(file) {
   });
 }
 
-export function estimateBase64Bytes(input) {
-  let s = String(input || '');
-  const comma = s.indexOf(',');
-  if (comma >= 0) s = s.slice(comma + 1);
-  const len = s.length;
-  const padding = s.endsWith('==') ? 2 : (s.endsWith('=') ? 1 : 0);
+function getBase64Data(value) {
+  const s = String(value || '');
+  const commaIndex = s.indexOf(',');
+  if (s.startsWith('data:') && commaIndex !== -1) {
+    return s.slice(commaIndex + 1);
+  }
+  return s;
+}
+
+export function estimateBase64Bytes(value) {
+  const data = getBase64Data(value);
+  const len = data.length;
+  if (!len) return 0;
+  let padding = 0;
+  const last = data.charAt(len - 1);
+  const prev = data.charAt(len - 2);
+  if (last === '=') padding += 1;
+  if (prev === '=') padding += 1;
   const bytes = Math.floor((len * 3) / 4) - padding;
   return bytes > 0 ? bytes : 0;
 }
