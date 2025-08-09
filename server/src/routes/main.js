@@ -3,6 +3,7 @@ const express = require('express');
 const authRouter = require('@src/routes/auth');
 const usersRouter = require('@src/routes/users');
 const postsRouter = require('@src/routes/posts');
+const authController = require('@src/controllers/authController');
 
 const router = express.Router();
 
@@ -11,7 +12,30 @@ router.get('/status', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Future sections
+// Auth endpoints
+router.post('/auth/register', async (req, res) => {
+  try {
+    const { email, password, displayName } = req.body || {};
+    const result = await authController.register(email, password, displayName);
+    return res.status(201).json(result);
+  } catch (err) {
+    const status = err.statusCode || 400;
+    return res.status(status).json({ success: false, error: { message: err.message || 'Registration error' } });
+  }
+});
+
+router.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const result = await authController.login(email, password);
+    return res.status(200).json(result);
+  } catch (err) {
+    const status = err.statusCode || 400;
+    return res.status(status).json({ success: false, error: { message: err.message || 'Login error' } });
+  }
+});
+
+// Future sections (placeholders)
 router.use('/auth', authRouter);
 router.use('/users', usersRouter);
 router.use('/posts', postsRouter);

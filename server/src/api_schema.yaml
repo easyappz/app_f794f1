@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Social Network API
-  version: 0.1.0
+  version: 0.1.1
   description: |
-    REST API scaffold for a social network. Endpoints will be detailed in future iterations.
+    REST API scaffold for a social network. Includes JWT-based auth endpoints.
 servers:
   - url: http://localhost:3001
     description: Local development server
@@ -13,6 +13,44 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, email, displayName, createdAt, updatedAt]
+    AuthSuccess:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserPublic'
+      required: [token, user]
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+      required: [error]
 security:
   - bearerAuth: []
 paths:
@@ -98,3 +136,170 @@ paths:
                 success: true
                 section: posts
                 message: Posts placeholder
+  /api/auth/register:
+    post:
+      summary: Register a new user
+      description: Creates a new user, hashes password with bcryptjs, and returns a JWT token (HS256, exp 7d) along with public user data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                displayName:
+                  type: string
+              required: [email, password, displayName]
+            examples:
+              valid:
+                summary: Valid payload
+                value:
+                  email: john.doe@example.com
+                  password: secret12
+                  displayName: John Doe
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccess'
+              examples:
+                success:
+                  value:
+                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    user:
+                      id: 65f0b1d9b0c5a1f1c2d3e4f5
+                      email: john.doe@example.com
+                      displayName: John Doe
+                      createdAt: '2025-01-01T00:00:00.000Z'
+                      updatedAt: '2025-01-01T00:00:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidEmail:
+                  value:
+                    success: false
+                    error:
+                      message: Invalid email format
+                shortPassword:
+                  value:
+                    success: false
+                    error:
+                      message: Password must be at least 6 characters
+                missingFields:
+                  value:
+                    success: false
+                    error:
+                      message: Email, password and displayName are required
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conflict:
+                  value:
+                    success: false
+                    error:
+                      message: Email already in use
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                serverError:
+                  value:
+                    success: false
+                    error:
+                      message: An unexpected error occurred
+  /api/auth/login:
+    post:
+      summary: Login with email and password
+      description: Verifies credentials and returns a JWT token (HS256, exp 7d) with public user data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+              required: [email, password]
+            examples:
+              valid:
+                summary: Valid payload
+                value:
+                  email: john.doe@example.com
+                  password: secret12
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccess'
+              examples:
+                success:
+                  value:
+                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    user:
+                      id: 65f0b1d9b0c5a1f1c2d3e4f5
+                      email: john.doe@example.com
+                      displayName: John Doe
+                      createdAt: '2025-01-01T00:00:00.000Z'
+                      updatedAt: '2025-01-01T00:00:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingFields:
+                  value:
+                    success: false
+                    error:
+                      message: Email and password are required
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid:
+                  value:
+                    success: false
+                    error:
+                      message: Invalid email or password
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                serverError:
+                  value:
+                    success: false
+                    error:
+                      message: An unexpected error occurred
