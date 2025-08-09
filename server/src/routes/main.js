@@ -35,9 +35,9 @@ router.post('/auth/login', async (req, res) => {
   }
 });
 
-// Future sections (placeholders)
+// Attach sub-routers
 router.use('/auth', authRouter);
-router.use('/users', usersRouter);
+router.use('/users', usersRouter); // /api/users -> users routes (me, update, get by id)
 router.use('/posts', postsRouter);
 
 module.exports = router;

@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Social Network API
-  version: 0.1.1
+  version: 0.2.0
   description: |
-    REST API scaffold for a social network. Includes JWT-based auth endpoints.
+    REST API scaffold for a social network. Includes JWT-based auth endpoints and user profile endpoints.
 servers:
   - url: http://localhost:3001
     description: Local development server
@@ -31,6 +31,61 @@ components:
           type: string
           format: date-time
       required: [id, email, displayName, createdAt, updatedAt]
+    ProfileMe:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        bio:
+          type: string
+        avatarBase64:
+          type: string
+          description: Image data as base64 (data URL or pure base64). Max 1MB.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, email, displayName, createdAt, updatedAt]
+    ProfilePublic:
+      type: object
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: string
+        avatarBase64:
+          type: string
+          description: Image data as base64 (data URL or pure base64).
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, displayName, createdAt, updatedAt]
+    UpdateMeRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 50
+        bio:
+          type: string
+          maxLength: 300
+        avatarBase64:
+          type: string
+          description: Base64 image data (with or without data URL prefix). Max 1MB.
+      additionalProperties: false
     AuthSuccess:
       type: object
       properties:
@@ -94,27 +149,6 @@ paths:
                 success: true
                 section: auth
                 message: Auth placeholder
-  /api/users:
-    get:
-      summary: Placeholder for User routes
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  section:
-                    type: string
-                  message:
-                    type: string
-              example:
-                success: true
-                section: users
-                message: Users placeholder
   /api/posts:
     get:
       summary: Placeholder for Post routes
@@ -303,3 +337,97 @@ paths:
                     success: false
                     error:
                       message: An unexpected error occurred
+  /api/users/me:
+    get:
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/ProfileMe'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update current user profile
+      description: Update displayName, bio and avatarBase64 (<= 1MB). Strings are normalized and trimmed.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeRequest'
+            examples:
+              example:
+                value:
+                  displayName: Jane Doe
+                  bio: Hello, I love coding!
+                  avatarBase64: data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/ProfileMe'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/users/{id}:
+    get:
+      summary: Get public profile by user id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Public user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/ProfilePublic'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
