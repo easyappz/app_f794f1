@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Social Network API
-  version: 0.2.0
+  version: 0.3.0
   description: |
-    REST API scaffold for a social network. Includes JWT-based auth endpoints and user profile endpoints.
+    REST API scaffold for a social network. Includes JWT-based auth endpoints, user profile endpoints, and posts endpoints with cursor pagination.
 servers:
   - url: http://localhost:3001
     description: Local development server
@@ -94,6 +94,54 @@ components:
         user:
           $ref: '#/components/schemas/UserPublic'
       required: [token, user]
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+        author:
+          $ref: '#/components/schemas/UserPublic'
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        imageBase64:
+          type: string
+          nullable: true
+          description: Base64 image (data URL or raw base64). Max 1MB.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, author, text, createdAt, updatedAt]
+    CreatePostRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        imageBase64:
+          type: string
+          description: Optional base64 image data. Max 1MB.
+      required: [text]
+      additionalProperties: false
+    PostsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Post'
+        nextCursor:
+          type: string
+          nullable: true
+      required: [success, posts]
     ErrorResponse:
       type: object
       properties:
@@ -149,27 +197,6 @@ paths:
                 success: true
                 section: auth
                 message: Auth placeholder
-  /api/posts:
-    get:
-      summary: Placeholder for Post routes
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  section:
-                    type: string
-                  message:
-                    type: string
-              example:
-                success: true
-                section: posts
-                message: Posts placeholder
   /api/auth/register:
     post:
       summary: Register a new user
@@ -427,6 +454,165 @@ paths:
                     $ref: '#/components/schemas/ProfilePublic'
         '404':
           description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/users/{id}/posts:
+    get:
+      summary: List posts by user id (public)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: ISO date-time string. Returns items created before this timestamp.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: List of user's posts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostsListResponse'
+              examples:
+                success:
+                  value:
+                    success: true
+                    posts:
+                      - id: 66a1b2c3d4e5f6a7b8c9d0e1
+                        text: Hello world!
+                        imageBase64: null
+                        createdAt: '2025-01-01T00:00:00.000Z'
+                        updatedAt: '2025-01-01T00:00:00.000Z'
+                        author:
+                          id: 65f0b1d9b0c5a1f1c2d3e4f5
+                          email: john.doe@example.com
+                          displayName: John Doe
+                          createdAt: '2025-01-01T00:00:00.000Z'
+                          updatedAt: '2025-01-01T00:00:00.000Z'
+                    nextCursor: '2024-12-31T23:59:59.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/posts:
+    get:
+      summary: List public feed (cursor pagination)
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: ISO date-time string. Returns items created before this timestamp.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: List of posts (public feed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostsListResponse'
+              examples:
+                success:
+                  value:
+                    success: true
+                    posts:
+                      - id: 66a1b2c3d4e5f6a7b8c9d0e1
+                        text: First post!
+                        imageBase64: null
+                        createdAt: '2025-01-01T00:00:00.000Z'
+                        updatedAt: '2025-01-01T00:00:00.000Z'
+                        author:
+                          id: 65f0b1d9b0c5a1f1c2d3e4f5
+                          email: john.doe@example.com
+                          displayName: John Doe
+                          createdAt: '2025-01-01T00:00:00.000Z'
+                          updatedAt: '2025-01-01T00:00:00.000Z'
+                    nextCursor: '2024-12-31T23:59:59.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a new post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+            examples:
+              example:
+                value:
+                  text: My first post!
+                  imageBase64: data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...
+      responses:
+        '201':
+          description: Post created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  post:
+                    $ref: '#/components/schemas/Post'
+              examples:
+                success:
+                  value:
+                    success: true
+                    post:
+                      id: 66a1b2c3d4e5f6a7b8c9d0e1
+                      text: My first post!
+                      imageBase64: null
+                      createdAt: '2025-01-01T00:00:00.000Z'
+                      updatedAt: '2025-01-01T00:00:00.000Z'
+                      author:
+                        id: 65f0b1d9b0c5a1f1c2d3e4f5
+                        email: john.doe@example.com
+                        displayName: John Doe
+                        createdAt: '2025-01-01T00:00:00.000Z'
+                        updatedAt: '2025-01-01T00:00:00.000Z'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
           content:
             application/json:
               schema:
