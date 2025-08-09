@@ -1,35 +1,32 @@
-const jwt = require('jsonwebtoken');
+const { verifyToken } = require('@src/utils/jwt');
+const { createHttpError } = require('@src/utils/errors');
 
-// NOTE: No .env files. Use a constant as required.
-const JWT_SECRET = 'JWT_SECRET_123456_CHANGE_ME';
-
-module.exports = function auth(req, res, next) {
+const auth = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: { message: 'Unauthorized: Missing Bearer token' } });
+    const header = req.headers && req.headers.authorization ? String(req.headers.authorization) : '';
+    if (!header) {
+      return next(createHttpError(401, 'Unauthorized', { reason: 'Missing Authorization header' }));
     }
 
-    const token = authHeader.slice(7).trim();
-    if (!token) {
-      return res.status(401).json({ success: false, error: { message: 'Unauthorized: Empty token' } });
+    const parts = header.split(' ');
+    if (parts.length !== 2 || String(parts[0]).toLowerCase() !== 'bearer' || !parts[1]) {
+      return next(createHttpError(401, 'Unauthorized', { reason: 'Expected Bearer token in Authorization header' }));
     }
 
-    let payload;
+    const token = parts[1];
     try {
-      payload = jwt.verify(token, JWT_SECRET);
+      const payload = verifyToken(token);
+      if (!payload || !payload.id) {
+        return next(createHttpError(401, 'Unauthorized', { reason: 'Invalid token payload' }));
+      }
+      req.user = { id: payload.id };
+      return next();
     } catch (e) {
-      return res.status(401).json({ success: false, error: { message: 'Unauthorized: Invalid token' } });
+      return next(createHttpError(401, 'Unauthorized', { reason: e && e.message ? e.message : 'Token verification failed' }));
     }
-
-    const userId = payload.userId || payload.id || payload.sub;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: { message: 'Unauthorized: Invalid token payload' } });
-    }
-
-    req.user = { id: userId };
-    return next();
   } catch (err) {
-    return res.status(401).json({ success: false, error: { message: err.message || 'Unauthorized' } });
+    return next(createHttpError(401, 'Unauthorized', { reason: 'Auth middleware error', error: err && err.message ? err.message : err }));
   }
 };
+
+module.exports = auth;

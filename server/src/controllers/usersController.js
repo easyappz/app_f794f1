@@ -1,125 +1,83 @@
 const mongoose = require('mongoose');
 const User = require('@src/models/User');
+const { createHttpError } = require('@src/utils/errors');
+const v = require('@src/utils/validation');
 
-function createError(statusCode, message, details) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  if (details) err.details = details;
-  return err;
+function toMe(user) {
+  return {
+    id: String(user._id),
+    email: user.email,
+    displayName: user.displayName,
+    bio: user.bio || '',
+    avatarBase64: user.avatarBase64 || '',
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 }
 
-function normalizeSpaces(str) {
-  return String(str || '').replace(/\s+/g, ' ').trim();
+function toPublic(user) {
+  return {
+    id: String(user._id),
+    displayName: user.displayName,
+    bio: user.bio || '',
+    avatarBase64: user.avatarBase64 || '',
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 }
-
-function base64SizeInBytes(input) {
-  if (!input) return 0;
-  const str = String(input);
-  const commaIdx = str.indexOf(',');
-  const pure = commaIdx >= 0 ? str.slice(commaIdx + 1) : str;
-  try {
-    return Buffer.byteLength(pure, 'base64');
-  } catch (e) {
-    // If invalid base64, return a large number to trigger validation error upstream
-    return Number.MAX_SAFE_INTEGER;
-  }
-}
-
-const LIMITS = {
-  displayNameMin: 2,
-  displayNameMax: 50,
-  bioMax: 300,
-  avatarMaxBytes: 1_000_000, // 1MB
-};
 
 async function getMe(userId) {
-  if (!userId) {
-    throw createError(401, 'Unauthorized');
-  }
-  let user;
   try {
-    user = await User.findById(userId);
+    const user = await User.findById(userId);
+    if (!user) throw createHttpError(404, 'User not found');
+    return toMe(user);
   } catch (err) {
-    throw createError(400, `Invalid user id: ${err.message}`);
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Failed to get current user', { error: err && err.message ? err.message : err });
   }
-  if (!user) {
-    throw createError(404, 'User not found');
-  }
-  return user.toClient(true);
 }
 
-async function updateMe(userId, payload = {}) {
-  if (!userId) {
-    throw createError(401, 'Unauthorized');
-  }
-
-  const updates = {};
-  const { displayName, bio, avatarBase64 } = payload;
-
-  if (displayName !== undefined) {
-    const dn = normalizeSpaces(displayName);
-    if (dn.length < LIMITS.displayNameMin || dn.length > LIMITS.displayNameMax) {
-      throw createError(
-        400,
-        `displayName must be between ${LIMITS.displayNameMin} and ${LIMITS.displayNameMax} characters`
-      );
-    }
-    updates.displayName = dn;
-  }
-
-  if (bio !== undefined) {
-    const b = normalizeSpaces(bio);
-    if (b.length > LIMITS.bioMax) {
-      throw createError(400, `bio must be at most ${LIMITS.bioMax} characters`);
-    }
-    updates.bio = b;
-  }
-
-  if (avatarBase64 !== undefined) {
-    if (avatarBase64 === '' || avatarBase64 === null) {
-      updates.avatarBase64 = '';
-    } else if (typeof avatarBase64 === 'string') {
-      const size = base64SizeInBytes(avatarBase64);
-      if (size > LIMITS.avatarMaxBytes) {
-        throw createError(400, 'Avatar exceeds 1MB limit');
-      }
-      updates.avatarBase64 = avatarBase64.trim();
-    } else {
-      throw createError(400, 'avatarBase64 must be a string with base64 data or empty string to clear');
-    }
-  }
-
-  let updated;
+async function updateMe(userId, { displayName, bio, avatarBase64 }) {
   try {
-    updated = await User.findByIdAndUpdate(userId, updates, { new: true });
+    const update = {};
+    if (displayName !== undefined) {
+      if (!v.isString(displayName)) throw createHttpError(400, 'displayName must be a string');
+      const d = v.normalize(displayName);
+      if (d.length < 2 || d.length > 50) throw createHttpError(400, 'displayName length must be between 2 and 50 chars');
+      update.displayName = d;
+    }
+    if (bio !== undefined) {
+      if (!v.isString(bio)) throw createHttpError(400, 'bio must be a string');
+      const b = v.normalize(bio);
+      if (b.length > 300) throw createHttpError(400, 'bio max length is 300 chars');
+      update.bio = b;
+    }
+    if (avatarBase64 !== undefined) {
+      if (!v.isString(avatarBase64)) throw createHttpError(400, 'avatarBase64 must be a string');
+      const bytes = v.base64Bytes(avatarBase64);
+      if (bytes > v.ONE_MB) throw createHttpError(400, 'avatarBase64 exceeds 1MB limit', { sizeBytes: bytes, maxBytes: v.ONE_MB });
+      update.avatarBase64 = avatarBase64;
+    }
+
+    const user = await User.findByIdAndUpdate(userId, update, { new: true });
+    if (!user) throw createHttpError(404, 'User not found');
+    return toMe(user);
   } catch (err) {
-    throw createError(400, `Update failed: ${err.message}`);
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Failed to update current user', { error: err && err.message ? err.message : err });
   }
-  if (!updated) {
-    throw createError(404, 'User not found');
-  }
-  return updated.toClient(true);
 }
 
 async function getById(id) {
-  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-    throw createError(404, 'User not found');
-  }
-  let user;
   try {
-    user = await User.findById(id);
+    if (!mongoose.Types.ObjectId.isValid(id)) throw createHttpError(404, 'User not found');
+    const user = await User.findById(id);
+    if (!user) throw createHttpError(404, 'User not found');
+    return toPublic(user);
   } catch (err) {
-    throw createError(400, `Invalid id: ${err.message}`);
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Failed to get user by id', { error: err && err.message ? err.message : err });
   }
-  if (!user) {
-    throw createError(404, 'User not found');
-  }
-  // Public profile: hide email
-  return user.toClient(false);
 }
 
-module.exports = {
-  getMe,
-  updateMe,
-  getById,
-};
+module.exports = { getMe, updateMe, getById };

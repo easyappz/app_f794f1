@@ -1,9 +1,13 @@
 openapi: 3.0.3
 info:
   title: Social Network API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     REST API scaffold for a social network. Includes JWT-based auth endpoints, user profile endpoints, and posts endpoints with cursor pagination.
+    Notes:
+      - All errors are centralized and return a unified body: { message, details? }.
+      - JWT is returned as a Bearer token in responses; httpOnly cookies are not used.
+      - Request body limit is 1MB. Images must be provided and stored only as base64. Max image size is 1MB.
 servers:
   - url: http://localhost:3001
     description: Local development server
@@ -144,16 +148,14 @@ components:
       required: [success, posts]
     ErrorResponse:
       type: object
+      description: Unified error format from centralized error handler
       properties:
-        success:
-          type: boolean
-          example: false
-        error:
-          type: object
-          properties:
-            message:
-              type: string
-      required: [error]
+        message:
+          type: string
+        details:
+          nullable: true
+          description: Optional details object
+      required: [message]
 security:
   - bearerAuth: []
 paths:
@@ -176,6 +178,12 @@ paths:
               example:
                 status: ok
                 timestamp: '2024-01-01T00:00:00.000Z'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/auth:
     get:
       summary: Placeholder for Auth routes
@@ -197,10 +205,16 @@ paths:
                 success: true
                 section: auth
                 message: Auth placeholder
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/auth/register:
     post:
       summary: Register a new user
-      description: Creates a new user, hashes password with bcryptjs, and returns a JWT token (HS256, exp 7d) along with public user data.
+      description: Creates a new user, hashes password with bcryptjs, and returns a JWT token (HS256, exp 7d) along with public user data. JWT is returned to be used as Bearer token; cookies are not used.
       requestBody:
         required: true
         content:
@@ -242,7 +256,7 @@ paths:
                       createdAt: '2025-01-01T00:00:00.000Z'
                       updatedAt: '2025-01-01T00:00:00.000Z'
         '400':
-          description: Validation error
+          description: Validation error (invalid email, password too short, invalid displayName, etc.)
           content:
             application/json:
               schema:
@@ -250,19 +264,10 @@ paths:
               examples:
                 invalidEmail:
                   value:
-                    success: false
-                    error:
-                      message: Invalid email format
+                    message: Invalid email format
                 shortPassword:
                   value:
-                    success: false
-                    error:
-                      message: Password must be at least 6 characters
-                missingFields:
-                  value:
-                    success: false
-                    error:
-                      message: Email, password and displayName are required
+                    message: Password must be at least 6 characters
         '409':
           description: Email already in use
           content:
@@ -272,25 +277,17 @@ paths:
               examples:
                 conflict:
                   value:
-                    success: false
-                    error:
-                      message: Email already in use
+                    message: Email already in use
         '500':
           description: Server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                serverError:
-                  value:
-                    success: false
-                    error:
-                      message: An unexpected error occurred
   /api/auth/login:
     post:
       summary: Login with email and password
-      description: Verifies credentials and returns a JWT token (HS256, exp 7d) with public user data.
+      description: Verifies credentials and returns a JWT token (HS256, exp 7d) with public user data. Token must be used as Bearer.
       requestBody:
         required: true
         content:
@@ -329,7 +326,7 @@ paths:
                       createdAt: '2025-01-01T00:00:00.000Z'
                       updatedAt: '2025-01-01T00:00:00.000Z'
         '400':
-          description: Validation error
+          description: Validation error (missing or invalid fields)
           content:
             application/json:
               schema:
@@ -337,9 +334,7 @@ paths:
               examples:
                 missingFields:
                   value:
-                    success: false
-                    error:
-                      message: Email and password are required
+                    message: Invalid email format
         '401':
           description: Invalid credentials
           content:
@@ -349,21 +344,13 @@ paths:
               examples:
                 invalid:
                   value:
-                    success: false
-                    error:
-                      message: Invalid email or password
+                    message: Invalid email or password
         '500':
           description: Server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                serverError:
-                  value:
-                    success: false
-                    error:
-                      message: An unexpected error occurred
   /api/users/me:
     get:
       summary: Get current user profile
@@ -383,7 +370,13 @@ paths:
                   user:
                     $ref: '#/components/schemas/ProfileMe'
         '401':
-          description: Unauthorized
+          description: Unauthorized (missing or invalid Bearer token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
           content:
             application/json:
               schema:
@@ -419,13 +412,26 @@ paths:
                   user:
                     $ref: '#/components/schemas/ProfileMe'
         '400':
-          description: Validation error
+          description: Validation error (invalid lengths or avatarBase64 > 1MB)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                bigAvatar:
+                  value:
+                    message: avatarBase64 exceeds 1MB limit
+                    details:
+                      sizeBytes: 1500000
+                      maxBytes: 1048576
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
           content:
             application/json:
               schema:
@@ -454,6 +460,16 @@ paths:
                     $ref: '#/components/schemas/ProfilePublic'
         '404':
           description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    message: User not found
+        '500':
+          description: Server error
           content:
             application/json:
               schema:
@@ -507,7 +523,13 @@ paths:
                           updatedAt: '2025-01-01T00:00:00.000Z'
                     nextCursor: '2024-12-31T23:59:59.000Z'
         '400':
-          description: Validation error
+          description: Validation error (invalid cursor or limit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
           content:
             application/json:
               schema:
@@ -556,7 +578,13 @@ paths:
                           updatedAt: '2025-01-01T00:00:00.000Z'
                     nextCursor: '2024-12-31T23:59:59.000Z'
         '400':
-          description: Validation error
+          description: Validation error (invalid cursor or limit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
           content:
             application/json:
               schema:
@@ -606,13 +634,26 @@ paths:
                         createdAt: '2025-01-01T00:00:00.000Z'
                         updatedAt: '2025-01-01T00:00:00.000Z'
         '400':
-          description: Validation error
+          description: Validation error (text length or imageBase64 > 1MB)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                bigImage:
+                  value:
+                    message: imageBase64 exceeds 1MB limit
+                    details:
+                      sizeBytes: 1500000
+                      maxBytes: 1048576
         '401':
-          description: Unauthorized
+          description: Unauthorized (missing or invalid Bearer token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
           content:
             application/json:
               schema:

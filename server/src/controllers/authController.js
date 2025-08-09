@@ -1,97 +1,59 @@
 const bcrypt = require('bcryptjs');
 const User = require('@src/models/User');
+const { createHttpError } = require('@src/utils/errors');
 const { signToken } = require('@src/utils/jwt');
+const v = require('@src/utils/validation');
 
-function isValidEmail(email) {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(String(email).toLowerCase());
-}
-
-function sanitizeUser(userDoc) {
+function toPublicUser(user) {
   return {
-    id: userDoc._id.toString(),
-    email: userDoc.email,
-    displayName: userDoc.displayName,
-    createdAt: userDoc.createdAt,
-    updatedAt: userDoc.updatedAt,
+    id: String(user._id),
+    email: user.email,
+    displayName: user.displayName,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 }
 
 async function register(email, password, displayName) {
   try {
-    if (!email || !password || !displayName) {
-      const err = new Error('Email, password and displayName are required');
-      err.statusCode = 400;
-      throw err;
-    }
+    const e = v.normalize(email).toLowerCase();
+    const d = v.normalize(displayName);
+    if (!v.isValidEmailBasic(e)) throw createHttpError(400, 'Invalid email format');
+    if (!v.isString(password) || password.length < 6) throw createHttpError(400, 'Password must be at least 6 characters');
+    if (d.length < 2 || d.length > 50) throw createHttpError(400, 'displayName length must be between 2 and 50 chars');
 
-    const normalizedEmail = String(email).toLowerCase().trim();
+    const exists = await User.findOne({ email: e }).lean();
+    if (exists) throw createHttpError(409, 'Email already in use');
 
-    if (!isValidEmail(normalizedEmail)) {
-      const err = new Error('Invalid email format');
-      err.statusCode = 400;
-      throw err;
-    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({ email: e, passwordHash, displayName: d });
 
-    if (String(password).length < 6) {
-      const err = new Error('Password must be at least 6 characters');
-      err.statusCode = 400;
-      throw err;
-    }
+    const token = signToken({ id: String(user._id) });
 
-    const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) {
-      const err = new Error('Email already in use');
-      err.statusCode = 409;
-      throw err;
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(String(password), salt);
-
-    const user = await User.create({
-      email: normalizedEmail,
-      passwordHash,
-      displayName: String(displayName).trim(),
-    });
-
-    const token = signToken(user._id.toString());
-
-    return { token, user: sanitizeUser(user) };
+    return { token, user: toPublicUser(user) };
   } catch (err) {
-    throw err;
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Registration error', { error: err && err.message ? err.message : err });
   }
 }
 
 async function login(email, password) {
   try {
-    if (!email || !password) {
-      const err = new Error('Email and password are required');
-      err.statusCode = 400;
-      throw err;
-    }
+    const e = v.normalize(email).toLowerCase();
+    if (!v.isValidEmailBasic(e)) throw createHttpError(400, 'Invalid email format');
+    if (!v.isString(password) || password.length < 6) throw createHttpError(400, 'Password must be at least 6 characters');
 
-    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ email: e });
+    if (!user) throw createHttpError(401, 'Invalid email or password');
 
-    const user = await User.findOne({ email: normalizedEmail });
-    if (!user) {
-      const err = new Error('Invalid email or password');
-      err.statusCode = 401;
-      throw err;
-    }
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) throw createHttpError(401, 'Invalid email or password');
 
-    const isMatch = await bcrypt.compare(String(password), user.passwordHash);
-    if (!isMatch) {
-      const err = new Error('Invalid email or password');
-      err.statusCode = 401;
-      throw err;
-    }
-
-    const token = signToken(user._id.toString());
-
-    return { token, user: sanitizeUser(user) };
+    const token = signToken({ id: String(user._id) });
+    return { token, user: toPublicUser(user) };
   } catch (err) {
-    throw err;
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Login error', { error: err && err.message ? err.message : err });
   }
 }
 

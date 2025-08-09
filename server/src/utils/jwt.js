@@ -1,14 +1,17 @@
 const jwt = require('jsonwebtoken');
 
-// IMPORTANT: Secret is hardcoded as required by the task (no .env)
-const JWT_SECRET = 'EASYAPPZ_JWT_SECRET_4b0f3d0a0fd34e7c92f9a7f2d2f4b6c1';
+// Not using httpOnly cookies; Bearer tokens only
+const JWT_SECRET = 'dev_super_secret_change_me_please_123';
 
-function signToken(userId) {
-  return jwt.sign({ id: userId }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+function signToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+  return jwt.verify(token, JWT_SECRET);
 }
 
-module.exports = { JWT_SECRET, signToken, verifyToken };
+module.exports = {
+  signToken,
+  verifyToken,
+};

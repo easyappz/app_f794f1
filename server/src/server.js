@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const requestLogger = require('@src/middlewares/requestLogger');
 const errorHandler = require('@src/middlewares/errorHandler');
 const apiRoutes = require('@src/routes/main');
+const { createHttpError } = require('@src/utils/errors');
 
 const app = express();
 
@@ -24,9 +25,9 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api', apiRoutes);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ success: false, error: { message: 'Not Found' } });
+// 404 handler -> centralized
+app.use((req, res, next) => {
+  return next(createHttpError(404, 'Not Found'));
 });
 
 // Centralized error handler

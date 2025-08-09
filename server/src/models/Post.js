@@ -1,17 +1,17 @@
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
-
-const PostSchema = new Schema(
+const postSchema = new mongoose.Schema(
   {
-    author: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    text: { type: String, required: true, trim: true, minlength: 1, maxlength: 500 },
-    imageBase64: { type: String, default: null },
+    author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    text: { type: String, required: true, trim: true },
+    imageBase64: { type: String, default: null }, // store base64 only
   },
   { timestamps: true }
 );
 
-PostSchema.index({ createdAt: -1 });
-PostSchema.index({ author: 1, createdAt: -1 });
+postSchema.index({ createdAt: -1 });
+postSchema.index({ author: 1, createdAt: -1 });
 
-module.exports = mongoose.models.Post || mongoose.model('Post', PostSchema);
+const Post = mongoose.models.Post || mongoose.model('Post', postSchema);
+
+module.exports = Post;

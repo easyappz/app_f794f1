@@ -1,147 +1,111 @@
+const mongoose = require('mongoose');
 const Post = require('@src/models/Post');
+const User = require('@src/models/User');
+const { createHttpError } = require('@src/utils/errors');
+const v = require('@src/utils/validation');
 
-function createHttpError(statusCode, message) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  return err;
-}
-
-function normalizeBase64(input) {
-  if (typeof input !== 'string') return null;
-  const str = input.trim();
-  return str.length ? str : null;
-}
-
-function estimateBase64Bytes(base64) {
-  if (!base64) return 0;
-  const commaIndex = base64.indexOf(',');
-  const raw = commaIndex >= 0 ? base64.slice(commaIndex + 1) : base64;
-  const clean = raw.replace(/[^A-Za-z0-9+/=]/g, '');
-  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
-  const bytes = Math.floor((clean.length * 3) / 4) - padding;
-  return bytes < 0 ? 0 : bytes;
-}
-
-function userToPublic(u) {
-  if (!u) return null;
+function toAuthorPublic(user) {
   return {
-    id: u._id.toString(),
-    email: u.email,
-    displayName: u.displayName,
-    createdAt: u.createdAt,
-    updatedAt: u.updatedAt,
+    id: String(user._id),
+    email: user.email,
+    displayName: user.displayName,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 }
 
-function toPostDTO(post) {
-  const author = post.author && post.author._id ? post.author : null;
+function toPostPublic(post, author) {
   return {
-    id: post._id.toString(),
+    id: String(post._id),
+    author: toAuthorPublic(author || post.author),
     text: post.text,
     imageBase64: post.imageBase64 || null,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
-    author: author ? userToPublic(author) : undefined,
   };
 }
 
 async function createPost(userId, { text, imageBase64 }) {
   try {
-    if (!userId) throw createHttpError(401, 'Unauthorized');
+    if (!v.isString(text)) throw createHttpError(400, 'text must be a string');
+    const t = v.normalize(text);
+    if (t.length < 1 || t.length > 500) throw createHttpError(400, 'text length must be between 1 and 500 chars');
 
-    const textValue = typeof text === 'string' ? text.trim() : '';
-    if (!textValue) throw createHttpError(400, 'Text is required');
-    if (textValue.length < 1 || textValue.length > 500) {
-      throw createHttpError(400, 'Text must be between 1 and 500 characters');
+    if (imageBase64 !== undefined && imageBase64 !== null) {
+      if (!v.isString(imageBase64)) throw createHttpError(400, 'imageBase64 must be a string');
+      const bytes = v.base64Bytes(imageBase64);
+      if (bytes > v.ONE_MB) throw createHttpError(400, 'imageBase64 exceeds 1MB limit', { sizeBytes: bytes, maxBytes: v.ONE_MB });
     }
 
-    const img = normalizeBase64(imageBase64);
-    if (img) {
-      const bytes = estimateBase64Bytes(img);
-      if (bytes > 1_000_000) {
-        throw createHttpError(400, 'Image exceeds 1MB limit');
-      }
-    }
+    const doc = await Post.create({ author: userId, text: t, imageBase64: imageBase64 || null });
+    const author = await User.findById(userId);
+    if (!author) throw createHttpError(404, 'User not found');
 
-    const post = await Post.create({ author: userId, text: textValue, imageBase64: img });
-    await post.populate('author', 'email displayName createdAt updatedAt');
-
-    return toPostDTO(post);
+    return toPostPublic(doc, author);
   } catch (err) {
-    throw err;
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Failed to create post', { error: err && err.message ? err.message : err });
   }
 }
 
 async function listFeed({ cursor, limit }) {
   try {
-    let lim = parseInt(limit, 10);
-    if (Number.isNaN(lim) || lim < 1) lim = 10;
-    if (lim > 50) lim = 50;
+    const limRes = v.parseLimit(limit !== undefined ? limit : 10);
+    const lim = limRes.ok ? limRes.value : 10;
 
     const query = {};
-    if (cursor) {
-      const d = new Date(cursor);
-      if (Number.isNaN(d.getTime())) {
-        throw createHttpError(400, 'Invalid cursor. Must be a valid ISO date string');
-      }
-      query.createdAt = { $lt: d };
+    if (cursor !== undefined) {
+      const parsed = v.parseCursor(cursor);
+      if (!parsed.ok) throw createHttpError(400, 'Invalid cursor', { hint: 'Use ISO date-time string' });
+      query.createdAt = { $lt: new Date(String(cursor)) };
     }
 
     const items = await Post.find(query)
       .sort({ createdAt: -1 })
       .limit(lim + 1)
-      .populate('author', 'email displayName createdAt updatedAt')
-      .exec();
+      .populate('author');
 
     const hasMore = items.length > lim;
     const sliced = hasMore ? items.slice(0, lim) : items;
-    const posts = sliced.map(toPostDTO);
-    const lastItem = sliced[sliced.length - 1];
-    const nextCursor = hasMore && lastItem ? lastItem.createdAt.toISOString() : null;
+    const posts = sliced.map(p => toPostPublic(p));
+    const nextCursor = hasMore ? sliced[sliced.length - 1].createdAt.toISOString() : null;
 
     return { posts, nextCursor };
   } catch (err) {
-    throw err;
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Failed to list posts', { error: err && err.message ? err.message : err });
   }
 }
 
 async function listByUser(userId, { cursor, limit }) {
   try {
-    if (!userId) throw createHttpError(400, 'User id is required');
+    if (!mongoose.Types.ObjectId.isValid(userId)) throw createHttpError(404, 'User not found');
 
-    let lim = parseInt(limit, 10);
-    if (Number.isNaN(lim) || lim < 1) lim = 10;
-    if (lim > 50) lim = 50;
+    const limRes = v.parseLimit(limit !== undefined ? limit : 10);
+    const lim = limRes.ok ? limRes.value : 10;
 
     const query = { author: userId };
-    if (cursor) {
-      const d = new Date(cursor);
-      if (Number.isNaN(d.getTime())) {
-        throw createHttpError(400, 'Invalid cursor. Must be a valid ISO date string');
-      }
-      query.createdAt = { $lt: d };
+    if (cursor !== undefined) {
+      const parsed = v.parseCursor(cursor);
+      if (!parsed.ok) throw createHttpError(400, 'Invalid cursor', { hint: 'Use ISO date-time string' });
+      query.createdAt = { $lt: new Date(String(cursor)) };
     }
 
     const items = await Post.find(query)
       .sort({ createdAt: -1 })
       .limit(lim + 1)
-      .populate('author', 'email displayName createdAt updatedAt')
-      .exec();
+      .populate('author');
 
     const hasMore = items.length > lim;
     const sliced = hasMore ? items.slice(0, lim) : items;
-    const posts = sliced.map(toPostDTO);
-    const lastItem = sliced[sliced.length - 1];
-    const nextCursor = hasMore && lastItem ? lastItem.createdAt.toISOString() : null;
+    const posts = sliced.map(p => toPostPublic(p));
+    const nextCursor = hasMore ? sliced[sliced.length - 1].createdAt.toISOString() : null;
 
     return { posts, nextCursor };
   } catch (err) {
-    throw err;
+    if (err && err.status) throw err;
+    throw createHttpError(500, 'Failed to list posts by user', { error: err && err.message ? err.message : err });
   }
 }
 
-module.exports = {
-  createPost,
-  listFeed,
-  listByUser,
-};
+module.exports = { createPost, listFeed, listByUser };

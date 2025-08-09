@@ -1,16 +1,18 @@
 const mongoose = require('mongoose');
 
-const { Schema } = mongoose;
-
-const UserSchema = new Schema(
+const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
-    displayName: { type: String, required: true, trim: true, minlength: 2, maxlength: 50 },
-    bio: { type: String, default: '', maxlength: 300 },
-    avatarBase64: { type: String, default: null },
+    displayName: { type: String, required: true, trim: true },
+    bio: { type: String, default: '', trim: true },
+    avatarBase64: { type: String, default: '' }, // store base64 only
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.models.User || mongoose.model('User', UserSchema);
+userSchema.index({ email: 1 }, { unique: true });
+
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+module.exports = User;
