@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 import AppLayout from './components/AppLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -23,7 +23,8 @@ function App() {
     <ErrorBoundary>
       <Routes>
         <Route element={<AppLayout />}> 
-          <Route path="/" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
+          <Route path="/" element={<Navigate to="/feed" replace />} />
+          <Route path="/feed" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />

@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+function isValidEmailBasic(value) {
+  const s = String(value || '').trim();
+  const at = s.indexOf('@');
+  const dot = s.lastIndexOf('.');
+  return at > 0 && dot > at + 1 && dot < s.length - 1;
+}
+
 export default function RegisterPage() {
   const { register, isWorking } = useAuth();
   const [displayName, setDisplayName] = useState('');
@@ -14,10 +21,25 @@ export default function RegisterPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    const res = await register({ email, password, displayName });
+
+    const name = String(displayName || '').trim();
+    if (name.length < 2) {
+      setError('Имя должно содержать минимум 2 символа');
+      return;
+    }
+    if (!isValidEmailBasic(email)) {
+      setError('Некорректная почта');
+      return;
+    }
+    if (String(password).length < 6) {
+      setError('Пароль должен быть не менее 6 символов');
+      return;
+    }
+
+    const res = await register({ email, password, displayName: name });
     if (res.ok) {
-      const to = location.state?.from?.pathname || '/';
-      navigate(to, { replace: true });
+      const from = location.state?.from?.pathname;
+      navigate(from || '/feed', { replace: true });
     } else {
       setError(res.message || 'Не удалось зарегистрироваться');
     }

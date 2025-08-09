@@ -17,13 +17,13 @@ export default function AppLayout() {
       <header style={{ position: 'sticky', top: 0, zIndex: 10, background: '#ffffff', borderBottom: '1px solid #e6e9ef' }}>
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: '#4f46e5' }} />
-            <Link to="/" style={{ textDecoration: 'none', color: '#111827', fontWeight: 700 }}>Easyappz Social</Link>
+            <div style={{ width: 12, height: 12, borderRadius: 3, background: '#4f46e5' }} />
+            <Link to="/feed" style={{ textDecoration: 'none', color: '#111827', fontWeight: 700 }}>Easyappz Social</Link>
           </div>
           <nav style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {isAuth ? (
               <>
-                <Link to="/" style={linkStyle}>Лента</Link>
+                <Link to="/feed" style={linkStyle}>Лента</Link>
                 <Link to="/profile" style={linkStyle}>Профиль</Link>
                 <div style={{ padding: '6px 10px', color: '#6b7280' }}>
                   {user?.displayName || 'Пользователь'}
